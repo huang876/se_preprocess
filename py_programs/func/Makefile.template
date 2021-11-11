@@ -1,0 +1,135 @@
+.PHONY : clean
+clean :
+	rm -f master_catalog.csv *.bg.fits *.seg.fits *.cat *_user_params.json *.msccmatch.fits *.wcscopy.fits *.wreg.fits *.wreg_rms.txt *.wreg_mean.txt *.rms.wreg.norm.fits *.flag.fits *.fwhm.txt *.psf.fits *.kernel.fits *.convolve.fits
+
+### calibrate raw science/rms images astrometry 
+### function used: msccmatch for sci, wcscopy for rms
+
+{% for band in bands_all %}
+{{band}}.msccmatch.fits: {{band}}.fits gaia.coo
+	touch timestamp -r {{band}}.fits
+	cp {{band}}.fits {{band}}.backup.fits
+	python3 -m py_programs.tasks.runner msccmatch {{band}}.fits gaia.coo
+	mv {{band}}.fits {{band}}.msccmatch.fits
+	mv {{band}}.backup.fits {{band}}.fits
+	touch {{band}}.fits -r timestamp
+	rm timestamp
+	touch {{band}}.msccmatch.fits
+{% endfor %}
+
+{% for band in bands_all %}
+{{band}}.rms.wcscopy.fits: {{band}}.msccmatch.fits {{band}}.rms.fits
+	touch timestamp -r {{band}}.rms.fits
+	cp {{band}}.rms.fits {{band}}.rms.backup.fits
+	python3 -m py_programs.tasks.runner wcscopy {{band}}.msccmatch.fits {{band}}.rms.fits
+	mv {{band}}.rms.fits {{band}}.rms.wcscopy.fits
+	mv {{band}}.rms.backup.fits {{band}}.rms.fits
+	touch {{band}}.rms.fits -r timestamp
+	rm timestamp
+	touch {{band}}.rms.wcscopy.fits
+{% endfor %}
+
+### reproject u, g, r to NB
+### function used: wregister
+
+{% for band in bands_broad %}
+{{band}}.wreg.fits: {{band}}.msccmatch.fits {{band_narrow}}.msccmatch.fits
+	python3 -m py_programs.tasks.runner wregister_sci {{band}}.msccmatch.fits {{band_narrow}}.msccmatch.fits {{band}}.wreg.fits
+	touch {{band}}.wreg.fits
+{% endfor %}
+
+{% for band in bands_broad %}
+{{band}}.rms.wreg.fits: {{band}}.rms.wcscopy.fits {{band_narrow}}.msccmatch.fits
+	python3 -m py_programs.tasks.runner wregister_rms {{band}}.rms.wcscopy.fits {{band_narrow}}.msccmatch.fits {{band}}.rms.wreg.fits
+	touch {{band}}.rms.wreg.fits
+{% endfor %}
+
+### iterstat & normalize rms
+
+{% for band in bands_broad %}
+{{band}}.wreg_rms.txt: {{band}}.wreg.fits
+	python3 -m py_programs.tasks.runner iterstat_sci {{band}}.wreg.fits {{band}}.wreg_rms.txt
+	touch {{band}}.wreg_rms.txt
+{% endfor %}
+
+{% for band in bands_broad %}
+{{band}}.wreg_mean.txt: {{band}}.rms.wreg.fits
+	python3 -m py_programs.tasks.runner iterstat_rms {{band}}.rms.wreg.fits {{band}}.wreg_mean.txt
+	touch {{band}}.wreg_mean.txt
+{% endfor %}
+
+{% for band in bands_broad %}
+{{band}}.rms.wreg.norm.fits: {{band}}.rms.wreg.fits {{band}}.wreg_rms.txt {{band}}.wreg_mean.txt 
+	python3 -m py_programs.tasks.runner rms_normalize {{band}}.rms.wreg.fits {{band}}.wreg_rms.txt {{band}}.wreg_mean.txt {{band}}.rms.wreg.norm.fits
+{% endfor %}
+
+### some extra steps on NB
+
+{{band_narrow}}.wreg.fits: {{band_narrow}}.msccmatch.fits
+	cp {{band_narrow}}.msccmatch.fits {{band_narrow}}.wreg.fits
+
+{{band_narrow}}.convolve.fits: {{band_narrow}}.msccmatch.fits
+	cp {{band_narrow}}.msccmatch.fits {{band_narrow}}.convolve.fits
+
+
+{{band_narrow}}.rms.wreg.norm.fits: {{band_narrow}}.rms.wcscopy.fits
+	cp {{band_narrow}}.rms.wcscopy.fits {{band_narrow}}.rms.wreg.norm.fits
+
+### make flag maps
+
+{% for band in bans_all %}
+{{band}}.flag.fits: {{band}}.rms.wreg.norm.fits
+	python3 -m py_programs.tasks.runner make_flag {{band}}.rms.wreg.norm.fits {{band}}.flag.fits
+{% endfor %}
+
+
+# imexam
+
+{% for band in bands_all %}
+{{band}}.fwhm.txt: {{band}}.wreg.fits
+	python3 -m py_programs.tasks.runner imexam {{band}}.wreg.fits {{band}}.fwhm.txt
+	touch {{band}}.fwhm.txt
+{% endfor %}
+
+
+### make moffat psf
+
+{% for band in bands_all %}
+{{band}}.psf.fits: {{band}}.fwhm.txt
+	python3 -m py_programs.tasks.runner make_moffat {{band}}.fwhm.txt {{band}}.psf.fits
+{% endfor %}
+
+### generate kernel
+
+{% for band in bands_broad %}
+{{band}}.kernel.fits: {{band}}.psf.fits {{band_narrow}}.psf.fits
+	python3 -m py_programs.tasks.runner generate_kernel {{band_narrow}}.psf.fits {{band}}.psf.fits {{band}}.kernel.fits
+{% endfor %}
+
+
+### convolve
+{% for band in bands_broad %}
+{{band}}.convolve.fits: {{band}}.wreg.fits {{band}}.kernel.fits {{band}}.rms.wreg.norm.fits {{band_narrow}}.rms.wreg.norm.fits {{band_narrow}}.flag.fits
+	python3 -m py_programs.tasks.runner convolve {{band}}.wreg.fits {{band}}.kernel.fits {{band}}.convolve.fits
+{% endfor %}
+
+### sextractor
+
+# prepare
+
+{% for band in bands_all %}
+{{band}}_sextractor_user_params.json:
+	echo 'preparing sextractor user parameter file for band {{band}}'
+	python3 -m py_programs.tasks.runner prepare_sextractor {{band}}_sextractor_user_params.json
+{% endfor %}
+
+# run
+{% for band in bands_all %}
+{{band}}.catalog.cat: {{band}}_sextractor_user_params.json {{band_narrow}}.convolve.fits {{band_narrow}}.rms.wreg.norm.fits {{band}}.convolve.fits {{band}}.rms.wreg.norm.fits {{band_narrow}}.flag.fits 
+	python3 -m py_programs.tasks.runner sextractor {{band}}_sextractor_user_params.json {{band_narrow}}.convolve.fits {{band_narrow}}.rms.wreg.norm.fits {{band}}.convolve.fits {{band}}.rms.wreg.norm.fits {{band}}.flag.fits {{band}}.catalog.cat {{band}}.seg.fits {{band}}.bg.fits
+{% endfor %}
+
+### master catalog
+master_catalog.csv: {% for band in bands_all %}{{band}}.catalog.cat {% endfor %}
+	python3 -m py_programs.tasks.runner create_master_catalog {{bands_all_comma_separated}} '%s.catalog.cat' master_catalog.csv
+

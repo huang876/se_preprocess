@@ -1,0 +1,17 @@
+version: "3"
+
+services:
+  pipeline:
+    image: odi_pipeline:latest
+    build: .
+    environment:
+      - DISPLAY=${DISPLAY}
+      - USER=astro
+      - REQUEST_PORT=${REQUEST_PORT}
+      - RESPONSE_PORT=${RESPONSE_PORT}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /path/to/data_folder:/mnt/data
+    network_mode: host
+    entrypoint: /bin/bash
+    user: astro

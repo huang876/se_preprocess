@@ -7,7 +7,7 @@ def msccmatch(fits_filename, coo_filename):
 
     mtime = os.path.getmtime(fits_filename)
 
-    mscred.msccmatch(fits_filename, coo_filename, nsearch=250, search30, rsearch=0.2, maxshift=5., cfrac=0.5)
+    mscred.msccmatch(fits_filename, coo_filename, nsearch=250, search=30, rsearch=0.2, maxshift=5., cfrac=0.5)
 
     m = gwm.getGraphicsWindowManager()
     m.delete('graphics1')

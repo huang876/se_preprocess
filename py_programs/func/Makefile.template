@@ -77,7 +77,7 @@ clean :
 
 ### make flag maps
 
-{% for band in bans_all %}
+{% for band in bands_all %}
 {{band}}.flag.fits: {{band}}.rms.wreg.norm.fits
 	python3 -m py_programs.tasks.runner make_flag {{band}}.rms.wreg.norm.fits {{band}}.flag.fits
 {% endfor %}
@@ -125,7 +125,7 @@ clean :
 
 # run
 {% for band in bands_all %}
-{{band}}.catalog.cat: {{band}}_sextractor_user_params.json {{band_narrow}}.convolve.fits {{band_narrow}}.rms.wreg.norm.fits {{band}}.convolve.fits {{band}}.rms.wreg.norm.fits {{band_narrow}}.flag.fits 
+{{band}}.catalog.cat: {{band}}_sextractor_user_params.json {{band_narrow}}.convolve.fits {{band_narrow}}.rms.wreg.norm.fits {{band}}.convolve.fits {{band}}.rms.wreg.norm.fits {{band}}.flag.fits 
 	python3 -m py_programs.tasks.runner sextractor {{band}}_sextractor_user_params.json {{band_narrow}}.convolve.fits {{band_narrow}}.rms.wreg.norm.fits {{band}}.convolve.fits {{band}}.rms.wreg.norm.fits {{band}}.flag.fits {{band}}.catalog.cat {{band}}.seg.fits {{band}}.bg.fits
 {% endfor %}
 

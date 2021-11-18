@@ -7,6 +7,7 @@ Features:
 * run environment is independent of local machine
 * only re-run necessary steps after changing input data and parameters
 * automatically analyze stdout from IRAF `iterstat` and `imexamine` tasks and use result for the following step
+* suuport multiple host operating systems
 
 The pipeline is not meant to be run as is but should be modified to suit specific data analysis routine.
 
@@ -28,13 +29,14 @@ SAOImageDS9, Python/AstroPy, IRAF/PyRaf, IDL, SExtractor
 2. make any necessary changes to adapt the code to your workflow
 3. edit `docker-compose.yml` and change `/path/to/data_folder` to the actual location of the data folder on the host machine
 4. (steps 4-6 apply only if you want to run the generate_kernel task) 
-open a new terminal, run `export REQUEST_PORT=8088` and `export RESPONSE_PORT=8089` (or any other port that you choose)
+open a new terminal, run `export REQUEST_PORT=8088` and `export RESPONSE_PORT=8089` (or any other port that you choose) in both terminals
 5. copy `server.py` and `generate_kernel.pro` to the data folder
 6. run `python server.py`
 7. Back in the repository, run `docker build -t odi_pipeline .` to build the image
 8. After the image is built successfully, run `docker-compose run --service-ports pipeline` to create a container
 9. inside the container, run `python3 -m py_programs.tasks.runner create_makefile`
 10. go to `/mnt/data` folder and run `make master_catalog.csv`
+    * caution: for Mac and Windows users, check `Addtional Notes`
 
 ## Brief explanation of data processing in the pipeline
 
@@ -58,4 +60,15 @@ reproject the broadband images to the same tangent point and pixel scale of `NB4
 * The pipeline has been thoroughly tested on a 64-bit Ubuntu host.
 * `touch` command is used after some IRAF/PyRAF tasks because IRAF changes the modification time of input files in an unexpected way, which makes the timestamp-based make system unusable
 
-
+### Operation system support
+* For both Windows and Mac systems:
+   * edit `docker-compose.yml`: change `environment: DISPLAY=host.docker.internal:0`.
+   * edit `server.py` (line:29) and `py_programs/func/generate_kernel.py` (line:8): change `127.0.0.1` to `host.docker.internal`.
+* Windows:
+   * must [have WSL 2 installed](https://docs.microsoft.com/en-us/windows/wsl/install), have [WSL integration](https://docs.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers) enabled, and have [WSLg support](https://github.com/microsoft/wslg) (generally means on Windows 11). If there is an issue with opening display, refer to [Wiki](https://github.com/microsoft/wslg/wiki/Diagnosing-%22cannot-open-display%22-type-issues-with-WSLg).
+* Mac:
+   * must [have XQuartz installed](https://www.xquartz.org/)
+   * Launch XQuartz. Under the XQuartz menu, select Preferences
+   * Go to the security tab and ensure "Allow connections from network clients" is checked.
+   * Run `xhost + ${hostname}` to allow connections to the macOS host
+   * For Mac with M1 processors, run `export DOCKER_DEFAULT_PLATFORM=linux/amd64` before docker build

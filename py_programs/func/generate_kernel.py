@@ -6,6 +6,8 @@ def generate_kernel(psf_target, psf_origin, output):
 
     clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     clientsocket.connect(('127.0.0.1', request_port))
+    #use the line below for Mac and Windows users
+    #clientsocket.connect(('host.docker.internal', request_port))
 
     subprocess_call_args = {'psf_target': psf_target, 'psf_origin': psf_origin, 'output': output}
 
